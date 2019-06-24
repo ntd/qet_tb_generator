@@ -1,0 +1,21 @@
+Metadata-Version: 1.1
+Name: qet-tb-generator
+Version: 1.0.16
+Summary: Script that generates terminal blocks & connectors for QElectroTech
+Home-page: UNKNOWN
+Author: Raul Roda
+Author-email: raulroda8@gmail.com
+License: GPL
+Description: Allows to generate terminal blocks and connectors for QElectroTech electrical diagram software.
+Keywords: qelectrotech terminal block electric
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Environment :: X11 Applications :: Qt
+Classifier: Environment :: MacOS X
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: GNU General Public License (GPL)
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Natural Language :: English
+Classifier: Topic :: Scientific/Engineering

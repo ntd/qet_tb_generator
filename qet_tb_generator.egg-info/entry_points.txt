@@ -1,0 +1,3 @@
+[console_scripts]
+qet_tb_generator = src.main:main
+
