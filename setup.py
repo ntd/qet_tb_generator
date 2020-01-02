@@ -5,7 +5,7 @@ from os import path
 
 setup(
     name="qet_tb_generator",
-    version="1.0.16",
+    version="1.1.4",
     description="Script that generates terminal blocks & connectors for QElectroTech",
     long_description = """Allows to generate terminal blocks and connectors for QElectroTech electrical diagram software.""",
     author="Raul Roda",
