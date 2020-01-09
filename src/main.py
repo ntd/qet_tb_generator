@@ -126,7 +126,7 @@ selection = []  # stores checkboxes selected to dray terminal blocks
 
 
 # CONSTANTS
-VERSION = '1.1.4'
+VERSION = '1.1.5'
 DEBUG = False
 STRIP_LONG = 30
 BG_COLOR = "#F0F0F0"  # background color 
@@ -141,36 +141,36 @@ To edit BRIDGE and TYPE, just right click on the cell.
 1: 
 """
 Steps to follow.
-- In QET. Optional: Choose Project> Clean Project
-- In QET. Start the plugin. Choose 'Start the terminal block creation plug-in' in the project menu.
-- In the complement. Edit the terminal blocks (described below).
-- In the complement. Press the 'CREATE TERMINAL BLOCKS' button.
-- In the complement. In the pop-up screen, choose the terminal blocks you want to create / update.
-- Close the addon.
-- In QET. Reopen the project.
-- In QET. Under the 'COLLECTIONS' tree of the project, all the terminal blocks appear.
+  - In QET, optional: Choose Project> Clean Project
+  - In QET: Start the plugin. Choose 'Start the terminal block creation plug-in' in the project menu.
+  - In this program: Edit the terminal blocks (described below).
+  - In this program: Press the 'CREATE TERMINAL BLOCKS' button.
+  - In this program: In the pop-up screen, choose the terminal blocks you want to create / update.
+  - In this program: Close 
+  - In QET:  Close without saving project (very important) and reopen the project.
+  - In QET: Under the 'COLLECTIONS' tree of the project, all the terminal blocks appear.
 
 Considerations for creating a terminal block from a diagram.
-- This addon searches all the elements of type 'Terminal'.
-- Normally, the terminal elements appear in the filter of the QET collection by 'terminal block'.
-- Terminals must have a tag such as <terminal_block_name>: <terminal_name>. For example: -X1: 1, X34: +, X1: 23, Y3: R, ...
-- All terminals with the same <terminal_block_name> are grouped and displayed in a tab in this add-on.
-- In the add-on, for each terminal block, you can specify how many terminals fits per page and the number of reserve terminals.
-- The terminals are sorted by default, however the order can be modified.
-- You can also specify the hose and the conductor connected at the bottom of every terminal (columns 'HOSE' and 'CONDUCTOR').
-- There are 3 types of terminals that you can specify in the 'TYPE' column (standard, ground, fuse)
-- The 'BRIDGE' column indicates if there is a bridge from the current to the next terminal.
+  - This addon searches all the elements of type 'Terminal'.
+  - Normally, the terminal elements appear in the filter of the QET collection by 'terminal block'.
+  - Terminals must have a tag such as <terminal_block_name>: <terminal_name>. For example: -X1: 1, X34: +, X1: 23, Y3: R, ...
+  - All terminals with the same <terminal_block_name> are grouped and displayed in a tab in this add-on.
+  - In the add-on, for each terminal block, you can specify how many terminals fits per page and the number of reserve terminals.
+  - The terminals are sorted by default, however the order can be modified.
+  - You can also specify the hose and the conductor connected at the bottom of every terminal (columns 'HOSE' and 'CONDUCTOR').
+  - There are 3 types of terminals that you can specify in the 'TYPE' column (standard, ground, fuse)
+  - The 'BRIDGE' column indicates if there is a bridge from the current to the next terminal.
 
 How to use:
-- To change the order of the terminals in the terminal block, just left-click or right-click
-  on the corresponding number of 'POS.' column.
-- By right-clicking on the cells of the TYPE and HOSE columns, it will alternate betwenn all possible values.
-- For each block of terms:
+  - To change the order of the terminals in the terminal block, just left-click or right-click
+    on the corresponding number of 'POS.' column.
+  - By right-clicking on the cells of the TYPE and HOSE columns, it will alternate betwenn all possible values.
+  - For each block of terms:
     - You can specify how many terminals per page you will draw.
     - the number of reserve terminals that are drawn at the end.
 
           
-Created by raulroda@yahoo.com
+Created by raulroda8@gmail.com
 """
 
 }

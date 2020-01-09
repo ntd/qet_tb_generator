@@ -190,7 +190,7 @@ class QETProject:
         @param element:  element  (XML etree object)
         @return: True / False"""
         
-        if re.search(r'^(\w+):(\w+)$', self._getElementName(element)):
+        if re.search(r'^(.+):(.+)$', self._getElementName(element).strip()):
             if 'type' in element.attrib:  # elements must have a 'type'
                 for el in self._terminalElements:  # searching type
                     if re.search(el + '$', element.attrib['type']):
@@ -313,7 +313,7 @@ class QETProject:
 
                 if self._isValidTerminal(element):
 
-                    terminalName = self._getElementName (element)
+                    terminalName = self._getElementName(element).strip()
                     meta_data = self._getElementMetadata (element)
                     
                     terminals = element.find('terminals').findall( 'terminal' )
