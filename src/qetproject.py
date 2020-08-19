@@ -20,6 +20,7 @@
  
 
 # Imports
+import logging as log
 import re
 import xml.etree.ElementTree as etree  # python3-lxml
 
@@ -49,7 +50,7 @@ class QETProject:
     # class attributes
     QET_COL_ROW_SIZE = 25  # pixels offset for elements coord
     QET_BLOCK_TERMINAL_SIZE = 30  # pixels offset for elements coord
-    DEBUG = False
+
 
 
     def __init__(self, project_file, fromPage='', \
@@ -76,9 +77,15 @@ class QETProject:
         # XML version
         self.xml_version = self.qet_project.attrib['version']
 
-        # pageOffset for folio numbers
-        self.pageOffset = int (self.qet_project.attrib
-                ['folioSheetQuantity'])  # offset table of contents
+        # pageOffset for folio numbers. 
+        # From versión 0.8 ot Qelectrotech, this attribute doesn't exist.
+        # folioSheetQuantity ==> offset table of contents
+        if 'folioSheetQuantity' in self.qet_project.attrib:
+            self.pageOffset = int (self.qet_project.attrib['folioSheetQuantity']) 
+        else:
+            log.info ("Atribute 'folioSheetQuantity' doesn't exist. Assuming 0")
+            self.pageOffset = 0
+            
 
         # general project info
         self._totalPages = len (self.qet_project.findall('.//diagram')) + \
@@ -190,6 +197,7 @@ class QETProject:
         @param element:  element  (XML etree object)
         @return: True / False"""
         
+        tmp = self._getElementName(element).strip()  #kk 
         if re.search(r'^(.+):(.+)$', self._getElementName(element).strip()):
             if 'type' in element.attrib:  # elements must have a 'type'
                 for el in self._terminalElements:  # searching type
@@ -289,8 +297,7 @@ class QETProject:
         element_y = int(y)
         rows_letters = [chr(x + 65) for x in range(rows)]
 
-        if self.DEBUG:
-            print( '<getXRef>: Cols: {}\tCol size: {}\tRow size: {}\tX position: {}\tY Position: {}'. \
+        log.debug( 'Cols: {}\tCol size: {}\tRow size: {}\tX position: {}\tY Position: {}'. \
                 format (cols, col_size, row_size, element_x, element_y))
 
         row_letter = rows_letters[ int(

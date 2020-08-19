@@ -94,26 +94,27 @@
 # - Modificar: save_tb
 # - Modificar last_trmnl en drawTerminalBlock. Añadir funciones de dibujo 
 #   si la columa lo requiere
-# - Modificar print_tb para depuracion
 # - Modificar click_on_reorder si la columna afecta a la ordenacion
 
 
 
 ## Imports
+import logging as log
+import os
+import re
+import shutil
+import sys
+import tkinter as tk
 from collections import OrderedDict
 from functools import cmp_to_key
 #~ import lxml.etree as etree  # python3-lxml
 from operator import itemgetter as i
-import os
+from tkinter import filedialog, messagebox, ttk
+
 from src.qetproject import QETProject
-import re
-import shutil
-import sys
 from src.terminalblock import TerminalBlock
-import tkinter as tk
-from tkinter import filedialog 
-from tkinter import messagebox
-from tkinter import ttk
+
+
 
 
 ## Globals (allows access from callbacks events)
@@ -126,8 +127,8 @@ selection = []  # stores checkboxes selected to dray terminal blocks
 
 
 # CONSTANTS
-VERSION = '1.1.5'
-DEBUG = False
+VERSION = '1.1.6'
+FECHA = 'August, 2020'
 STRIP_LONG = 30
 BG_COLOR = "#F0F0F0"  # background color 
 txt = {
@@ -141,12 +142,13 @@ To edit BRIDGE and TYPE, just right click on the cell.
 1: 
 """
 Steps to follow.
-  - In QET, optional: Choose Project> Clean Project
+  - In QET, optional: Choose Project> Clean Project.
+  - In QET:  Close and reopen the project.
   - In QET: Start the plugin. Choose 'Start the terminal block creation plug-in' in the project menu.
-  - In this program: Edit the terminal blocks (described below).
-  - In this program: Press the 'CREATE TERMINAL BLOCKS' button.
-  - In this program: In the pop-up screen, choose the terminal blocks you want to create / update.
-  - In this program: Close 
+  - In this plug-in: Edit the terminal blocks (described below).
+  - In this plug-in: Press the 'CREATE TERMINAL BLOCKS' button.
+  - In this plug-in: In the pop-up screen, choose the terminal blocks you want to create / update.
+  - In this plug-in: Close 
   - In QET:  Close without saving project (very important) and reopen the project.
   - In QET: Under the 'COLLECTIONS' tree of the project, all the terminal blocks appear.
 
@@ -170,8 +172,8 @@ How to use:
     - the number of reserve terminals that are drawn at the end.
 
           
-Created by raulroda8@gmail.com
-"""
+Created by raulroda8@gmail.com ({})
+""".format(FECHA)
 
 }
 
@@ -460,25 +462,6 @@ def click_on_choose(event):
     event.widget.master.destroy()
 
     
-def print_tb(data):
-    if DEBUG:
-        print ('{}\t{}\t{}\t{}\t{}\t{}'.format( \
-            'Segm.', \
-            'Blk', \
-            'Ter.Pos', \
-            'Cable', \
-            'Conduct', \
-            'Ter.Nam'))
-        for it in data:
-            print ("{}\t{}\t{}\t{}\t{}\t{}\t{}".format( \
-                    it['segment'], \
-                    it['block_name'], \
-                    it['terminal_pos'], \
-                    it['cable'], \
-                    it['cable_cond'], \
-                    it['bridge'], \
-                    it['terminal_name']))
-    
             
 def click_on_reorder(event):
     """Re-sort data according the data edited by the user in the ui
@@ -495,12 +478,6 @@ def click_on_reorder(event):
         for key in data_sorted[row].keys():
             wdg_data[row][key].set(data_sorted[row][key])
             
-        #~ ## wdg_data = convert_to_control_var(data_sorted)
-    #~ ## print_tb(wdg_data)
-
-
-    #~ messagebox.showinfo("QET", \
-            #~ "This will redraw the table according the POS. column values.")
   
 
 def sort_terminals(data):
@@ -609,7 +586,8 @@ def drawTerminalRow(frmTable, tab_row, wdg_data_index):
     lbl.config(state='disabled')
     lbl.grid(row=tab_row+offset, column=0)
     lbl.bind("<Button-1>", decrement_on_pos)
-    lbl.bind("<Button-3>", increment_on_pos)
+    lbl.bind("<Button-3>", increment_on_pos)  # right click in Win & Lin. In Mac is middle button
+    lbl.bind("<Button-2>", increment_on_pos)  # right click in Mac
 
     # TERMINAL NAME (ID) colum
     lbl = tk.Entry(frmTable, borderwidth=0, width=GRID_CONFIG[1]['width'],
@@ -645,6 +623,7 @@ def drawTerminalRow(frmTable, tab_row, wdg_data_index):
                     relief="solid")
     lbl.grid(row=tab_row+offset, column=4)
     lbl.bind("<Button-3>", right_on_bridge)
+    lbl.bind("<Button-2>", right_on_bridge)
 
     # TERMINAL TYPE column
     lbl = tk.Entry(frmTable, borderwidth=0, width=GRID_CONFIG[5]['width'],
@@ -653,6 +632,7 @@ def drawTerminalRow(frmTable, tab_row, wdg_data_index):
                     relief="solid")
     lbl.grid(row=tab_row+offset, column=5)
     lbl.bind("<Button-3>", right_on_type)
+    lbl.bind("<Button-2>", right_on_type)
 
     # HOSE column
     lbl = tk.Entry(frmTable, borderwidth=0, width=GRID_CONFIG[6]['width'],
@@ -776,7 +756,7 @@ def initUI(root):
     
 def get_QET_path(wdg_root):
     """Returns the QET project file from command line or file dialog"""
-    
+
     ## Get QET path from command line or show dialog to choose one.
     if len(sys.argv) == 1:  # first data is the prg name
         ftypes = [('QET', '*.qet'), ('All files', '*')]
@@ -786,6 +766,7 @@ def get_QET_path(wdg_root):
         if fl != '':
             return fl
     else:
+        log.info('Using the argument passed: {}({})'.format(sys.argv, len(sys.argv)))
         return sys.argv[1]
 
 
@@ -816,18 +797,47 @@ def convert_from_control_var():
         ret.append(a_row)
     return ret
     
-    
-def print_debug_xml(element):
-    if DEBUG:
-        print (etree.tostring(element).decode())
-    
+
+def initialize_logger():
+    logger = log.getLogger()
+    logger.setLevel(log.DEBUG)
      
+    # console
+    handler = log.StreamHandler()
+    handler.setLevel(log.DEBUG)
+    formatter = log.Formatter( \
+            '%(asctime)s %(levelname)-8s %(message)s [%(module)s.%(funcName)s:%(lineno)i]', '%H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+ 
+    # error file
+    #handler = log.FileHandler(os.path.join(output_dir, "error.log"),"a", encoding=None, delay="true")
+    #handler.setLevel(log.ERROR)
+    #formatter = log.Formatter("%(asctime)s %(levelname)-8s %(message)s [%(module)s.%(funcName)s:%(lineno)i]")    
+    #handler.setFormatter(formatter) 
+    #logger.addHandler(handler)
+ 
+    # log file
+    #handler = log.FileHandler(os.path.join(output_dir, "all.log"),"a")
+    #handler.setLevel(log.INFO)
+    #formatter = log.Formatter("%(asctime)s %(module)-12s %(levelname)-8s %(message)s")
+    #handler.setFormatter(formatter)
+    #logger.addHandler(handler)
+
+
+
+
 def main():
     global qet_project
     global wdg_data  
     global qet_file
     global qet_terminals
     
+    
+    # Sistema de log
+    initialize_logger()
+    log.info ('** QElectrotech terminal block plug-in - v{} **'.format(VERSION))
+
 
     ## UI Root
     wdg_root = tk.Tk()

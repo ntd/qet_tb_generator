@@ -20,6 +20,7 @@
  
 
 # Imports
+import logging as log
 import re
 import xml.etree.ElementTree as etree  # python3-lxml
 import uuid as uuidly
@@ -32,7 +33,6 @@ class TerminalBlock:
         terminal_xref, terminal_type, conductor_name, cable, cable_cond}
     """
 
-    DEBUG = False
     HEAD_WIDTH = 44
     HEAD_HEIGHT = 120
     UNION_WIDTH = 6
@@ -99,9 +99,7 @@ class TerminalBlock:
         only_numbers = [int(x[self._IDX_TERM_NAME_])
             for x in self.terminals if x[self._IDX_TERM_NAME_].isdigit()]
         only_numbers.sort()
-        if self.DEBUG:
-            print ("<drawTerminalBlock> Reservation - {}". \
-                format(only_numbers))
+        log.debug("<drawTerminalBlock> Reservation - {}".format(only_numbers))
 
         print ('{}'.format(self.terminals[0]))
 
