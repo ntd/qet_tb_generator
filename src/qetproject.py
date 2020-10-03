@@ -214,6 +214,8 @@ class QETProject:
         @return: string whith cable  number"""
 
         ret = ''
+        log.debug ("Getting cable number connected to terminal {} at page {}".format ( \
+            terminalId, diagram.attrib['title']))
         for cable in diagram.find('conductors').findall('conductor'):
             for cable_terminal in \
                     [x for x in cable.attrib if x[:8] == 'terminal' ]:

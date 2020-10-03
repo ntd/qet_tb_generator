@@ -127,8 +127,8 @@ selection = []  # stores checkboxes selected to dray terminal blocks
 
 
 # CONSTANTS
-VERSION = '1.1.6'
-FECHA = 'August, 2020'
+VERSION = '1.1.7'
+FECHA = 'September, 2020'
 STRIP_LONG = 30
 BG_COLOR = "#F0F0F0"  # background color 
 txt = {
@@ -319,15 +319,21 @@ def click_on_create_tb(event):
     choose_window.wm_title("Choose...")
     
     tk.Label(choose_window, text="Choose terminal blocks to generate", \
-                justify='left').pack(side='top', anchor='w', padx=10,pady=10)
+                justify='left').grid(row=0, column=0, columnspan=5, padx=4, pady=4)
     
+    # Create the array of textboxes
+    r = 1
+    c = 0
     for bk in selection:
-        tk.Checkbutton(choose_window,
-                text=bk['label'],
-                variable=bk['check']).pack(side='top', anchor='w', padx=10, pady=3)
+        tk.Checkbutton(choose_window, text=bk['label'], variable=bk['check']).\
+                grid(row=r, column=c, padx=4, pady=4)
+        c+=1
+        if c == 11: 
+            r+=1
+            c=0
     
     b1 = tk.Button(choose_window, text='ACCEPT')
-    b1.pack(side='right', padx=10, pady=10)
+    b1.grid(row=r+2, column=0, columnspan=2, padx=4, pady=4)
     b1.bind("<Button-1>", click_on_choose)
 
 
