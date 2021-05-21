@@ -33,28 +33,41 @@ class TerminalBlock:
         terminal_xref, terminal_type, conductor_name, cable, cable_cond}
     """
 
-    HEAD_WIDTH = 44
-    HEAD_HEIGHT = 120
-    UNION_WIDTH = 6
-    UNION_HEIGHT = 70
-    TERMINAL_WIDTH = 20
-    TERMINAL_HEIGHT = HEAD_HEIGHT + 40
-    CONDUCTOR_LENGTH = 70
-    CABLE_LENGTH = 80
-    CONDUCTOR_END_LENGTH = 70
-    
+    LOGO_HEIGHT = 36  #  the height of the FUSE LOGO for fuse type
+    Y_OFFSET_BASE_TEXT = 22  # vertical offset between terminal and letters
+    X_OFFSET_CABLE_TEXT = 4  # horizontal offset between cable and its name
 
-
-    def __init__(self, tb_block_name, collec):
+    def __init__(self, tb_block_name, collec, settings={}):
         """initializer.
         @param string tb_block_name: block_name
         @param collec: collection of terminals. Only the terminals of the
             segment 'tb_id' are accepted.
+        @param settings: dict with the settings
         """
         self.tb_block_name = tb_block_name
         self.terminals = collec
         self.num_terminals = len(self.terminals)
         self.tb_id = self.terminals[0]['block_name']
+        
+        # set settings if defined or defaults
+        self.HEAD_HEIGHT = [int( settings['-CFG_A-'] ), 120][settings=={}]
+        self.HEAD_WIDTH = [int( settings['-CFG_B-'] ), 44][settings=={}]
+        self.UNION_HEIGHT = [int( settings['-CFG_C-'] ), 70][settings=={}]
+        self.UNION_WIDTH = [int( settings['-CFG_D-'] ), 6][settings=={}]
+        self.TERMINAL_HEIGHT = [int( settings['-CFG_E-'] ), 160][settings=={}]
+        self.TERMINAL_WIDTH = [int( settings['-CFG_F-'] ), 20][settings=={}]
+        self.CONDUCTOR_LENGTH = [int( settings['-CFG_G-'] ), 70][settings=={}]
+        self.HOSE_CONDUCTOR_START = [int( settings['-CFG_H-'] ), 70][settings=={}]
+        self.HOSE_LENGTH = [int( settings['-CFG_I-'] ), 80][settings=={}]
+        self.HOSE_CONDUCTOR_END = [int( settings['-CFG_J-'] ), 70][settings=={}]
+
+        self.HEAD_FONT = [int( settings['-CFG_HEAD_FONT-'] ), 13][settings=={}]
+        self.TERMINAL_FONT = [int( settings['-CFG_TERMINAL_FONT-'] ), 9][settings=={}]
+        self.XREF_FONT = [int( settings['-CFG_XREF_FONT-'] ), 6][settings=={}]
+        self.CONDUCTOR_FONT = [int( settings['-CFG_CONDUCTOR_FONT-'] ), 6][settings=={}]
+
+        self.SPLIT_SIZE = [int( settings['-CFG_SPLIT-'] ), 30][settings=={}]
+
 
 
     def _getNum(self, x):
@@ -101,8 +114,6 @@ class TerminalBlock:
         only_numbers.sort()
         log.debug("<drawTerminalBlock> Reservation - {}".format(only_numbers))
 
-        print ('{}'.format(self.terminals[0]))
-
         if only_numbers:  # if the are digits in terminals numeration
             for i in range(1, int(only_numbers[-1])):
                 if i not in only_numbers:
@@ -119,21 +130,22 @@ class TerminalBlock:
 
         # calc some values    
         name = 'TB_'+ self.tb_block_name  
-        total_width = TerminalBlock.HEAD_WIDTH + \
-                TerminalBlock.UNION_WIDTH + \
-                self.num_terminals * TerminalBlock.TERMINAL_WIDTH + \
+        total_width = self.HEAD_WIDTH + \
+                self.UNION_WIDTH + \
+                self.num_terminals * self.TERMINAL_WIDTH + \
                 1  # +1 to force round the next tenth
         while (total_width % 10): total_width += 1
-        total_height = TerminalBlock.TERMINAL_HEIGHT + \
-                TerminalBlock.CONDUCTOR_LENGTH + \
-                TerminalBlock.CABLE_LENGTH + \
-                TerminalBlock.CONDUCTOR_END_LENGTH + 20 + \
+        total_height = self.CONDUCTOR_LENGTH + \
+                self.TERMINAL_HEIGHT + \
+                self.HOSE_CONDUCTOR_START + \
+                self.HOSE_LENGTH + \
+                self.HOSE_CONDUCTOR_END + \
                 1  # +1 to force round the next tenth
         while (total_height % 10): total_height += 1
 
         # define the element
         """Save the array 'data' to the XML file"""
-        cursor = 0  #seves current X coord.
+        cursor = 0  #saves current X coord.
         root = etree.Element('element', name=name + '.elmt')
         
         definition = etree.SubElement(root, "definition", \
@@ -152,138 +164,159 @@ class TerminalBlock:
 
         description = etree.SubElement(definition, 'description')
         
+        # Geometric y coord of the terminals
+        y_term_center = self.CONDUCTOR_LENGTH + (self.TERMINAL_HEIGHT / 2)
+
         # draw TB header
-        y1 = (TerminalBlock.TERMINAL_HEIGHT - TerminalBlock.HEAD_HEIGHT) / 2
+        y1 = y_term_center - (self.HEAD_HEIGHT / 2)  # upper left corner
         hd = self._rect (description, x=cursor, y=y1, \
-                width=TerminalBlock.HEAD_WIDTH, height=TerminalBlock.HEAD_HEIGHT)
-        hd_label = self._label_header(description, text=self.tb_block_name)
+                width=self.HEAD_WIDTH, height=self.HEAD_HEIGHT)
+        hd_label = self._label_header(description, y=y_term_center, \
+            text=self.tb_block_name)
         
-        cursor += TerminalBlock.HEAD_WIDTH
-        y1 = (TerminalBlock.TERMINAL_HEIGHT - TerminalBlock.UNION_HEIGHT) / 2
+        # draw Union
+        cursor += self.HEAD_WIDTH
+        y1 = y_term_center - (self.UNION_HEIGHT / 2)  # upper left corner
         un = self._rect (description, x=cursor, y=y1, \
-                width=TerminalBlock.UNION_WIDTH, height=TerminalBlock.UNION_HEIGHT)
+                width=self.UNION_WIDTH, height=self.UNION_HEIGHT)
                 
         # process every teminal
-        cursor += TerminalBlock.UNION_WIDTH
+        cursor += self.UNION_WIDTH
         last_trmnl = {}  
         for k in self.terminals[0]: last_trmnl[k] = ''  # init last_trmnl
-
         last_cable_coord_x = cursor
+        max_cond_name_length = max( [len(x['cable']) for x in self.terminals] )
+        max_hose_cond_name_length = max( [len(x['cable']) for x in self.terminals] )
+         # to align bottom cable labels because of the text goes to north direction.
+
+        
         for i in range(0, self.num_terminals):
             trmnl = self.terminals[i]
-            halfx = cursor + TerminalBlock.TERMINAL_WIDTH / 2
+            x_term_center = cursor + (self.TERMINAL_WIDTH / 2)
             
             # draw terminal
-            term = self._rect(description, x=cursor, y=0, \
-                    width= TerminalBlock.TERMINAL_WIDTH, \
-                    height= TerminalBlock.TERMINAL_HEIGHT)
-            term_label = self._label_term(description, cursor, 0, trmnl['terminal_name'])
-            term_xref_label = self._label_term_xref(description, cursor, 0, trmnl['terminal_xref'])
+            term = self._rect(description, x=cursor, \
+                    y=y_term_center - (self.TERMINAL_HEIGHT /2 ), \
+                    width= self.TERMINAL_WIDTH, height= self.TERMINAL_HEIGHT)
+            term_label = self._label_term(description, \
+                    x=x_term_center, \
+                    y=y_term_center + (self.TERMINAL_HEIGHT / 2) - TerminalBlock.Y_OFFSET_BASE_TEXT, \
+                    text=trmnl['terminal_name'])
+            term_xref_label = self._label_term_xref(description, \
+                    x=x_term_center, \
+                    y=y_term_center - TerminalBlock.Y_OFFSET_BASE_TEXT, \
+                    text=trmnl['terminal_xref'])
             
             # draw fuse, ground,... logo
-            logo = self._type_term(description, x=cursor, y=0, typ=trmnl['terminal_type'])
+            logo = self._type_term(description, \
+                    x=x_term_center, \
+                    y=y_term_center, typ=trmnl['terminal_type'])
 
             # draw bridge if needed
             if trmnl['bridge']:
-                bridge = self._line(description, x1=halfx, \
-                        x2=halfx + TerminalBlock.TERMINAL_WIDTH , \
-                        y1=TerminalBlock.TERMINAL_HEIGHT / 2 + 10+ 1.5, \
-                        y2=TerminalBlock.TERMINAL_HEIGHT / 2 + 10 +1.5)
+                bridge = self._line(description, x1=x_term_center, \
+                        x2=x_term_center + self.TERMINAL_WIDTH , \
+                        y1=y_term_center, y2=y_term_center)
             
             # draw north cables
-            north_cable = self._line_vc(description, x=cursor, y1 = 0, y2 = -30)
-            north_cable_label = self._label_cond(description, cursor, -2 , trmnl['cable'])
-            north_terminal = self._qet_term(description, cursor, -30, 'n')
+            north_cable = self._line(description, x1=x_term_center, x2=x_term_center, \
+                    y1 = 0, y2 = self.CONDUCTOR_LENGTH)
+            north_cable_label = self._label_cond(description, \
+                    x=x_term_center - self.CONDUCTOR_FONT - TerminalBlock.X_OFFSET_CABLE_TEXT, \
+                    y=self.CONDUCTOR_LENGTH - TerminalBlock.Y_OFFSET_BASE_TEXT + 3, \
+                    text=trmnl['cable'])
+            north_terminal = self._qet_term(description, x=cursor, y=0, orientation='n')
+
 
             # draw south conductor depens if belongs or not a cable.
             if trmnl['hose'] != '':  # belongs
-                # cable touching the terminal block
-                south_cable = self._line_vc (description, x=cursor, \
-                    y1 = TerminalBlock.TERMINAL_HEIGHT, \
-                    y2 = TerminalBlock.TERMINAL_HEIGHT + TerminalBlock.CONDUCTOR_LENGTH)
-                south_cable_label = self._label_cond(description , x=cursor, \
-                    y=TerminalBlock.TERMINAL_HEIGHT +  28, \
+                
+                # hose conductor start part
+                south_cable = self._line (description, x1=x_term_center, x2=x_term_center, \
+                    y1 = self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT, \
+                    y2 = self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START)
+                south_cable_label = self._label_cond(description , \
+                    x=x_term_center - self.CONDUCTOR_FONT - TerminalBlock.X_OFFSET_CABLE_TEXT, \
+                    y=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + TerminalBlock.Y_OFFSET_BASE_TEXT + (max_cond_name_length * self.CONDUCTOR_FONT), \
                     text=trmnl['cable'])
-
-                # conductor tick and label
-                conductor_label = self._label_cond(description , x=cursor, \
-                    y=TerminalBlock.TERMINAL_HEIGHT + TerminalBlock.CONDUCTOR_LENGTH -7, \
+                conductor_label = self._label_cond(description , \
+                    x=x_term_center - self.CONDUCTOR_FONT - TerminalBlock.X_OFFSET_CABLE_TEXT, \
+                    y=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START, \
                     text=trmnl['conductor'])
                 conductor_tick = self._line(description, \
-                    x1=cursor + TerminalBlock.TERMINAL_WIDTH/2 - 2, \
-                    x2=cursor + TerminalBlock.TERMINAL_WIDTH/2 + 2, \
-                    y1=TerminalBlock.TERMINAL_HEIGHT + TerminalBlock.CONDUCTOR_LENGTH -7-8, \
-                    y2=TerminalBlock.TERMINAL_HEIGHT + TerminalBlock.CONDUCTOR_LENGTH -7-5)
+                    x1=cursor + self.TERMINAL_WIDTH/2 - 2, \
+                    x2=cursor + self.TERMINAL_WIDTH/2 + 2, \
+                    y1=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START-10 - 2, \
+                    y2=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START-10 + 2)
 
-                # end part of the conductor
-                y1 = TerminalBlock.TERMINAL_HEIGHT + \
-                        TerminalBlock.CONDUCTOR_LENGTH + \
-                        TerminalBlock.CABLE_LENGTH
-                y2 = TerminalBlock.TERMINAL_HEIGHT + \
-                        TerminalBlock.CONDUCTOR_LENGTH + \
-                        TerminalBlock.CABLE_LENGTH + \
-                        TerminalBlock.CONDUCTOR_END_LENGTH
-                y_label = y1 + 20
-                south_cable_end = self._line_vc (description, x=cursor, y1=y1, y2=y2) 
+                # hose conductor end part
+                y1 = self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START + self.HOSE_LENGTH
+                y2 = y1 + self.HOSE_CONDUCTOR_END
+                south_cable_end = self._line (description, x1=x_term_center, x2=x_term_center, \
+                    y1=y1, y2=y2
+                ) 
+                south_cable_end_label = self._label_cond(description , \
+                    x=x_term_center - self.CONDUCTOR_FONT - TerminalBlock.X_OFFSET_CABLE_TEXT, \
+                    y=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START + \
+                        self.HOSE_LENGTH + TerminalBlock.Y_OFFSET_BASE_TEXT + (max_hose_cond_name_length * self.CONDUCTOR_FONT*1.5), \
+                    text=trmnl['conductor']
+                )    
                 conductor_tick_end = self._line(description, \
-                    x1=cursor + TerminalBlock.TERMINAL_WIDTH/2 - 2, \
-                    x2=cursor + TerminalBlock.TERMINAL_WIDTH/2 + 2, \
-                    y1=y_label - 8, y2=y_label - 5)
-                south_cable_end_label = self._label_cond(description , x=cursor, \
-                    y= y_label, text=trmnl['conductor'])    
+                    x1=cursor + self.TERMINAL_WIDTH/2 - 2, \
+                    x2=cursor + self.TERMINAL_WIDTH/2 + 2, \
+                    y1=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START + \
+                        self.HOSE_LENGTH + TerminalBlock.Y_OFFSET_BASE_TEXT + (max_hose_cond_name_length * self.CONDUCTOR_FONT*1.5)-10 -2, \
+                    y2=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START + \
+                        self.HOSE_LENGTH + TerminalBlock.Y_OFFSET_BASE_TEXT + (max_hose_cond_name_length * self.CONDUCTOR_FONT*1.5)-10 +2
+                )
                 south_terminal = self._qet_term(description, cursor, y2, 's')
             
-            else:  # independend conductor (no hose)
-                south_cable = self._line_vc (description, x=cursor, \
-                y1 = TerminalBlock.TERMINAL_HEIGHT, \
-                y2 = TerminalBlock.TERMINAL_HEIGHT + 30)
-                south_cable_label = self._label_cond(description , x=cursor, \
-                    y=TerminalBlock.TERMINAL_HEIGHT + 28, text=trmnl['cable'])
-                south_terminal = self._qet_term(description, cursor, \
-                    TerminalBlock.TERMINAL_HEIGHT + 30 , 's')
-                    
-            # draw hose of conductors
-            y1 = TerminalBlock.TERMINAL_HEIGHT + TerminalBlock.CONDUCTOR_LENGTH
-            y2 = TerminalBlock.TERMINAL_HEIGHT + \
-                    TerminalBlock.CONDUCTOR_LENGTH + \
-                    TerminalBlock.CABLE_LENGTH
 
-            if ( (trmnl['hose'] != last_trmnl['hose']) \
-                        and (last_trmnl['hose'] != '') ) \
+            else:  # independend conductor (no hose)
+                south_cable = self._line (description, x1=x_term_center, x2=x_term_center, \
+                        y1 = self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT,
+                        y2 = self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.CONDUCTOR_LENGTH)
+                south_cable_label = self._label_cond(description , \
+                    x=x_term_center - self.CONDUCTOR_FONT - 3, \
+                    y=self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + TerminalBlock.Y_OFFSET_BASE_TEXT + (max_cond_name_length * self.CONDUCTOR_FONT), \
+                    text=trmnl['cable'])
+                south_terminal = self._qet_term(description, x=cursor, \
+                    y=2*self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT , orientation='s')
+
+            # draw horizontal line across all hose conductors when end of hose is detected
+            y1 = self.CONDUCTOR_LENGTH + self.TERMINAL_HEIGHT + self.HOSE_CONDUCTOR_START
+            y2 = y1 + self.HOSE_LENGTH
+            if ( (trmnl['hose'] != last_trmnl['hose']) and (last_trmnl['hose'] != '') ) \
                 or \
-               ( (last_trmnl['hose'] != '') \
-                        and (i == self.num_terminals - 1) ) : # change hose or last term.
+               ( (last_trmnl['hose'] != '') and (i == self.num_terminals - 1) ):  # hose change or the hose arrives to the last term
                     
-                x1 = last_cable_coord_x + (TerminalBlock.TERMINAL_WIDTH / 2)
-                x2 = cursor - (TerminalBlock.TERMINAL_WIDTH / 2)
+                x1 = last_cable_coord_x + (self.TERMINAL_WIDTH / 2)
+                x2 = cursor - (self.TERMINAL_WIDTH / 2)
                 
                 # Change coord for horizontal line    
                 if i == self.num_terminals - 1:
                     if trmnl['hose'] == last_trmnl['hose']:
-                        x2 = x2 + TerminalBlock.TERMINAL_WIDTH 
+                        x2 = x2 + self.TERMINAL_WIDTH 
 
                 hor_line1 = self._line(description, x1, x2, y1, y1)
                 hor_line2 = self._line(description, x1, x2, y2, y2)
                 ver_line = self._line(description, (x1+x2)/2, (x1+x2)/2, y1, y2)
                 ver_line_label = self._label_cond(description, \
-                        (x1+x2)/2 - TerminalBlock.TERMINAL_WIDTH + 10, \
-                        y1 + ((y2-y1)/2) + len(last_trmnl['hose'])*3, \
+                        (x1+x2)/2 - self.TERMINAL_WIDTH + 10, \
+                        y1 + ((y2-y1)/2) + len(last_trmnl['hose'])*1.3, \
                         last_trmnl['hose'])
+                 
 
+            # Last terminal belongs to a individual hose
+            if ( (last_trmnl['hose'] == '') and trmnl['hose'] !='' and (i == self.num_terminals - 1) ):  
+                
+                x1 = cursor  + (self.TERMINAL_WIDTH / 2)
+                ver_line = self._line(description, x1, x1, y1, y2)
+                ver_line_label = self._label_cond(description, \
+                x1 - 10, \
+                y1 + ((y2-y1)/2) + len(trmnl['hose'])*1.3, \
+                trmnl['hose'])                   
 
-                # Extra line if last cable has only one conductor
-                if i == self.num_terminals-1:
-                    if (trmnl['hose'] != last_trmnl['hose']) \
-                       and \
-                       (trmnl['hose'] != ''):
-                        x1 = x1 + TerminalBlock.TERMINAL_WIDTH
-                        x2 = x2 + TerminalBlock.TERMINAL_WIDTH
-                        ver_line = self._line(description, x2, x2, y1, y2)
-                        ver_line_label = self._label_cond(description, \
-                        x2 - 10, \
-                        y1 + ((y2-y1)/2) + len(last_trmnl['hose'])*3, \
-                        trmnl['hose'])                   
-                        
                         
             # memo of x coord.
             if trmnl['hose'] != last_trmnl['hose']:
@@ -291,8 +324,10 @@ class TerminalBlock:
 
                 
             # task at loop end
-            cursor += TerminalBlock.TERMINAL_WIDTH
+            cursor += self.TERMINAL_WIDTH
             last_trmnl = trmnl
+
+
 
         #~ etree.ElementTree(root).write('tmp.xml') #, pretty_print=True)
         return root
@@ -328,8 +363,8 @@ class TerminalBlock:
     def _element_label(self, father):
         # element label
         label = etree.SubElement(father, 'dynamic_text', \
-                x=str(TerminalBlock.HEAD_WIDTH + 5), \
-                y=str(TerminalBlock.HEAD_HEIGHT + 5), \
+                x=str(self.HEAD_WIDTH + 5), \
+                y=str(self.HEAD_HEIGHT + 5), \
                 z='2', \
                 text_from='ElementInfo', text_width='-1', \
                 uuid = '{' + uuidly.uuid1().urn[9:] + '}', \
@@ -341,49 +376,46 @@ class TerminalBlock:
 
 
     def _type_term(self, father, x, y, typ):
-        """Generates a xml element that represents the logo of the teminal
         """
-        y = y + 10  # move all down
+        Generates a xml element that represents the logo of the teminal
+        @param x: center of terminal
+        @param y: center of terminal
+        """
         if typ.lower() == 'ground':
             logo_with = 15
-            y = y - 6
-            x1 = x + (TerminalBlock.TERMINAL_WIDTH / 2)
-            y1 = y + (TerminalBlock.TERMINAL_HEIGHT /2)
-            y2 = y1 + 10
-            vert_line1 = self._line(father, x1, x1, y1, y2)
+            y1 = y - 10
+            y2 = y
+            vert_line1 = self._line(father, x, x, y1, y2)
                         
-            x1 = x + (TerminalBlock.TERMINAL_WIDTH - logo_with) / 2
-            x2 = x1 + logo_with
+            x1 = x - (logo_with / 2)
+            x2 = x + (logo_with / 2)
             hor_line1 = self._line(father, x1, x2, y2, y2)
-            
             hor_line2 = self._line(father, x1+2, x2-2, y2+2, y2+2)
             hor_line3 = self._line(father, x1+4, x2-4, y2+4, y2+4)
+            hor_line4 = self._line(father, x1+6, x2-6, y2+6, y2+6)
+        
         elif typ.lower() == 'fuse':
-            logo_height = 36
-            x1 = x
-            x2 = x + TerminalBlock.TERMINAL_WIDTH
-            y1 = y + (TerminalBlock.TERMINAL_HEIGHT / 2) - (logo_height/2)  # centering
-            y2 = y1 + logo_height
+            logo_height = TerminalBlock.LOGO_HEIGHT
+            x1 = x - (self.TERMINAL_WIDTH / 2)
+            x2 = x + (self.TERMINAL_WIDTH / 2)
+            y1 = y - (logo_height/2)
+            y2 = y + (logo_height/2)
             hor_line1 = self._line(father, x1, x2, y1, y1)
             hor_line2 = self._line(father, x1, x2, y2, y2)
             
             # central square
-            xc = x + (TerminalBlock.TERMINAL_WIDTH / 2)
-            x1a = xc - 3
-            x2a = xc + 3
+            x1a = x - 3
+            x2a = x + 3
             y1a = y1 + 6
             y2a = y2 - 6
             hor_line3 = self._line(father, x1a, x2a, y1a, y1a)
             hor_line4 = self._line(father, x1a, x2a, y2a, y2a)
-                        
             vert_line1 = self._line(father, x1a, x1a, y1a, y2a)
             vert_line2 = self._line(father, x2a, x2a, y1a, y2a)
             vert_line3 = self._line(father, x1a + (x2a-x1a)/2, \
                     x1a + (x2a-x1a)/2, y1a-3, y2a+3)
-        else:
-            x1 = x + TerminalBlock.TERMINAL_WIDTH / 2
-            y1 = y + TerminalBlock.TERMINAL_HEIGHT / 2 
-            cir = self._circle(father, x1, y1, 3)
+        else: 
+            cir = self._circle(father, x-2, y-2, 4)
             
                         
     def _circle(self, father, x, y, diameter):
@@ -393,25 +425,6 @@ class TerminalBlock:
         ls = 'line-style:normal;line-weight:normal;filling:none;color:black'
         return etree.SubElement(father, 'circle', \
                         x = str(x), y = str(y), diameter = str(diameter), \
-                        antialias = 'false', \
-                        style = ls)
-                        
-                        
-    def _line_vc(self, father, x, y1, y2):
-        """Generates a xml element that represents a line verticalcentered 
-        on the terminal
-        """
-        xc= x + TerminalBlock.TERMINAL_WIDTH / 2
-        ls = 'line-style:normal;line-weight:normal;filling:none;color:black'
-        return etree.SubElement(father, 'line', \
-                        x1 = str(xc), \
-                        x2 = str(xc), \
-                        y1 = str(y1), \
-                        y2 = str(y2), \
-                        length1 = '1.5', \
-                        length2 = '1.5', \
-                        end1 = 'none', \
-                        end2 = 'none', \
                         antialias = 'false', \
                         style = ls)
 
@@ -435,7 +448,7 @@ class TerminalBlock:
 
 
     def _rect(self, father, x, y, width, height):
-        """Generates a xml element that represents a line verticalcentered 
+        """Generates a xml element that represents a line vertical centered 
         on the terminal
         """
         style = 'line-style:normal;line-weight:normal;filling:none;color:black'
@@ -452,7 +465,7 @@ class TerminalBlock:
         """Generates a xml element that represents a line verticalcentered 
         on the terminal
         """
-        xc = x + TerminalBlock.TERMINAL_WIDTH / 2
+        xc = x + self.TERMINAL_WIDTH / 2
         orth_terminal = etree.SubElement(father, 'terminal', \
                     x=str(xc), y=str(y), \
                     orientation=orientation)
@@ -466,7 +479,7 @@ class TerminalBlock:
         @ param y: y pos. of the text
         @ param text: text to show
         """
-        size = 6
+        size = self.CONDUCTOR_FONT
         xc = x - size + 1
         label = etree.SubElement(father, 'dynamic_text', \
                 x=str(xc), \
@@ -483,17 +496,16 @@ class TerminalBlock:
         return label          
         
 
-    def _label_header(self, father, text):
+    def _label_header(self, father, y, text):
         """Generates a xml element that represents a label of a conductor centered
-        on the terminal
+        on the terminal. 
         @ param father: xml node father
-        @ param x: x pos. of the header
-        @ param y: y pos. of the header
+        @ param y: y pos. of the center header
         @ param text: text to show
         """
-        size = 13
-        x = (TerminalBlock.HEAD_WIDTH / 2) - size
-        y = (TerminalBlock.HEAD_HEIGHT / 2) + (len(text) / 2) * size * 1.3 
+        size = self.HEAD_FONT
+        x = (self.HEAD_WIDTH / 2) - size
+        y = y + (len(text) / 2) * size
         label = etree.SubElement(father, 'dynamic_text', \
                 x=str(x), \
                 y=str(y), \
@@ -514,12 +526,12 @@ class TerminalBlock:
         on the terminal
         @ param father: xml node father
         @ param x: x pos. of the terminal
-        @ param y: y pos. of the terminal
+        @ param y: y pos. of the bottom of the terminal
         @ param text: id of the terminal
         """
-        size = 9
-        x1 = x + (TerminalBlock.HEAD_WIDTH / 2) - TerminalBlock.TERMINAL_WIDTH - size + 6
-        y1 = y + TerminalBlock.TERMINAL_HEIGHT - 12
+        size = self.TERMINAL_FONT
+        x1 = x - (size * 1.1)
+        y1 = y + (y*0.10)
         label = etree.SubElement(father, 'dynamic_text', \
                 x=str(x1), \
                 y=str(y1), \
@@ -540,15 +552,14 @@ class TerminalBlock:
         on the terminal
         @ param father: xml node father
         @ param x: x pos. of the terminal
-        @ param y: y pos. of the terminal
+        @ param y: y pos. of the top part of the possible logo (fuse, ground,...)
         @ param text: id of the terminal
         """
-        size = 6
-        x1 = x + (TerminalBlock.HEAD_WIDTH / 2) - TerminalBlock.TERMINAL_WIDTH - size + 5
-        y1 = y + 70
+        size = self.XREF_FONT
+        x1 = x - (size * 1.1)
         label = etree.SubElement(father, 'dynamic_text', \
                 x=str(x1), \
-                y=str(y1), \
+                y=str(y), \
                 z='3', \
                 text_from='UserText', \
                 uuid = '{' + uuidly.uuid1().urn[9:] + '}', \

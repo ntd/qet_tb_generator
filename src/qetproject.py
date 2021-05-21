@@ -21,8 +21,12 @@
 
 # Imports
 import logging as log
+import operator
 import re
 import xml.etree.ElementTree as etree  # python3-lxml
+from collections import OrderedDict
+import tempfile
+import os
 
 
 class QETProject:
@@ -64,13 +68,47 @@ class QETProject:
         @param toPage: last page in range to be processed
         @param searchImplicitsConnections: True for search implicit connections in TB creation"""
 
-        self._qet_tree = etree.parse(project_file)
+        # Defines namespaces if exists. When changes the project logo in QET appears ns
+        # but are not defined in the head, like:  xmlns:ns0="ns0".
+        # If namespaces are not defines, etree cannot parse the XML file.
 
+        
+        # with open(project_file, 'r' ,encoding='utf8') as f:
+        #     xml = f.read()
+        #     ns = re.findall( '[\s<]{1}(\w+):', xml )  # namesapaces
+        # if ns:
+        #     ns = [ x for x in dict.fromkeys(ns) if \
+        #             x.startswith('ns') or x.startswith('dc') or x.startswith('rdf')   ]  # delete duplicates, and filtar
+        #     ns_def = ''
+        #     for n in ns:
+        #         ns_str = 'xmlns:{}='.format(n)
+        #         this_ns = re.findall( ns_str, xml )  # if found, no add ns definition again
+        #         if not this_ns:
+        #             ns_def += 'xmlns:{}="{}" '.format(n,n)
+        #     if ns_def:
+        #         xml = re.sub('>', ' ' + ns_def + '>', xml, 1)  #replaces first ocurrence
+        #         with open(project_file, 'w' ,encoding='utf8') as f:
+        #             f.write(xml)
+        
+        # Creates a copy of original project because of the LOGO section usually has not defined namespaces
+        # and etree launches an error
+        regex_logos = '(<logos>[\s\S]+<\/logos>)'
+        with open(project_file, 'r' ,encoding='utf8') as f:
+            xml = f.read()
+            logo = re.findall( regex_logos, xml )  # namesapaces
+        if logo:
+            self.original_logo_section = logo
+            xml = re.sub(regex_logos, '<logos />', xml, 1)  #replaces first ocurrence
+        tmpf = tempfile.NamedTemporaryFile(mode='w', encoding='utf8', delete=False)
+        tmpf.write(xml)
+        log.info ("Generate temp file {}".format(tmpf.name))
+
+        # starting...
+        self._qet_tree = etree.parse(tmpf.name)
         self.qet_project_file = project_file
         self.qet_project = self._qet_tree.getroot()
         
         # determine xref format to use or default
-
         self.folio_reference_type = self.qet_project.find('.//newdiagrams'). \
                 find('report').attrib['label']
 
@@ -93,6 +131,15 @@ class QETProject:
 
         # elements type of terminal
         self._terminalElements = self._getListOfElementsByType( 'terminal' )
+
+        # finds all terminals. A list of dicts
+        self._set_used_terminals()
+
+        #deleting temp file
+        tmpf.close()
+        os.unlink(tmpf.name)
+        log.info ("Deleted temp file {}".format(tmpf.name))
+
 
 
     def _getListOfElementsByType(self, element_type):
@@ -159,6 +206,8 @@ class QETProject:
                 break
         
         ## Getting data
+        if meta is None:
+            meta = ''
         foo  = re.search(r'%p(\d+)(%|$)', meta)  # %p
         ret['terminal_pos'] = foo.group(1) if foo else ''
 
@@ -309,11 +358,19 @@ class QETProject:
         return (row_letter, column)
 
 
-    def get_list_of_used_terminals(self):
-        """Return a list of all terminal elements used in the qet project.
-        @return list where every element is a dict. See class info.
+
+    def _get_used_terminals(self):
+        return self.__used_terminals
+
+
+
+    def _set_used_terminals(self):
+        """Creates a list of all terminal elements used in the qet project.
+        List where every element is a dict. See class info.
+        Sorted by Block_name and terminal_pos
         """
-        ret = []  # return dict
+
+        ret = []
 
         # first search for elements of type 'terminal' and its conductors.
         for diagram in self.qet_project.findall('diagram'):  # all diagrams
@@ -336,9 +393,14 @@ class QETProject:
                     el['block_name'] = terminalName.split(':')[0]
                     el['terminal_name'] = terminalName.split(':')[1]
                     el['terminal_xref'] = self._getXRef(diagram, element)
-                    el['cable'] = cableNum
-                    
-                    el['terminal_pos'] = meta_data['terminal_pos']
+                    el['cable'] = cableNum             
+                    if meta_data['terminal_pos']=='':  #  convert to integer for more initial intelligent sorting
+                        try:
+                            el['terminal_pos'] = int(el['terminal_name']) 
+                        except:
+                            el['terminal_pos'] = 1
+                    else:
+                        el['terminal_pos'] = int(meta_data['terminal_pos'])
                     el['terminal_type'] = meta_data['terminal_type']
                     el['hose'] = meta_data['hose']
                     el['conductor'] = meta_data['conductor']
@@ -347,11 +409,32 @@ class QETProject:
                     el['reserve_positions'] = meta_data['reserve_positions']
                     el['size'] = meta_data['size']
                 if el: ret.append(el)
+        
+        # SQL = ORDER BY block_name DESC, terminal_pos ASC
+        ret.sort(key=operator.itemgetter('terminal_pos'))
+        ret.sort(key=operator.itemgetter('block_name'), reverse=True)
 
-        return ret
+        #Renum. position field from 1 by one-to-one
+        memo_tb = ''; i = 1
+        for t in ret:
+            if t['block_name'] != memo_tb:
+                i=1
+            t['terminal_pos'] = i
+            memo_tb = t['block_name']
+            i +=1
+
+        self.__used_terminals = ret
 
 
-    def update_termials(self, data):
+    def get_max_tb_length(self):
+        """
+        Returns the lenth of terminal-block with more terminals
+        """
+        t = [ x['block_name'] for x in self.__used_terminals]
+        ocurrences = [t.count(i) for i in t]
+        return max(ocurrences)
+
+    def update_terminals(self, data):
         """Changes the config of every terminal in the diagra. The changes made 
         in the plugin will be save in the 'elementInformation' of every
         terminal."""
@@ -360,15 +443,21 @@ class QETProject:
                 dt = [x for x in data if x['uuid'] == element.attrib['uuid']]
                 if dt:
                     found = False
-                    value = r'%p{}%t{}%h{}%n{}%b{}%r{}%z{}%s{}'.format(
+                    # value = r'%p{}%t{}%h{}%n{}%b{}%r{}%z{}%s{}'.format(
+                    #         dt[0]['terminal_pos'], \
+                    #         dt[0]['terminal_type'], \
+                    #         dt[0]['hose'], \
+                    #         dt[0]['conductor'], \
+                    #         dt[0]['bridge'], \
+                    #         dt[0]['num_reserve'], \
+                    #         dt[0]['reserve_positions'], \
+                    #         dt[0]['size'] )
+                    value = r'%p{}%t{}%h{}%n{}%b{}%'.format(
                             dt[0]['terminal_pos'], \
                             dt[0]['terminal_type'], \
                             dt[0]['hose'], \
                             dt[0]['conductor'], \
-                            dt[0]['bridge'], \
-                            dt[0]['num_reserve'], \
-                            dt[0]['reserve_positions'], \
-                            dt[0]['size'] )
+                            dt[0]['bridge'] )
                     for elinfo in element.iter('elementInformation'):
                         if elinfo.attrib['name'] == 'function':
                             elinfo.text = value
@@ -385,6 +474,15 @@ class QETProject:
 
     def save_tb(self, filename):
         self._qet_tree.write(filename)  #, pretty_print=True)
+
+        # replace temporal empty logo with the original
+        if self.original_logo_section:
+            with open(filename, 'r' ,encoding='utf8') as f:
+                xml = f.read()
+            new_xml = re.sub('<logos />', self.original_logo_section[0], xml, 1)  #replaces first ocurrence
+            with open(filename, 'w' ,encoding='utf8') as f:
+                f.write(new_xml)
+
 
 
     def insert_tb(self, name, tb_node):
@@ -405,3 +503,15 @@ class QETProject:
         # adding the element
         father.insert(0, tb_node)
     
+
+    def _get_tb_names(self):
+        """
+        Get a list of the terminal-block names sorted
+        """
+        sort_key = [x['block_name'] for x in self.__used_terminals]
+        return list(OrderedDict.fromkeys(sort_key)) 
+  
+    
+    # properties
+    terminals = property(_get_used_terminals)
+    tb_names = property(_get_tb_names)
