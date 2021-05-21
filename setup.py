@@ -20,7 +20,7 @@ setup(
 
                                        #name_of_executable = folder.module:function_to_execute
     entry_points={'console_scripts': ['qet_tb_generator=src.main:main']},
-    install_requires=[pysimplegui],
+    install_requires=[PySimpleGUI],
     keywords='qelectrotech terminal block electric',
 
     classifiers=[
