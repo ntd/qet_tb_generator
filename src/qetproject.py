@@ -385,10 +385,12 @@ class QETProject:
                     terminals = element.find('terminals').findall( 'terminal' )
                     terminalId = terminals[0].attrib['id']
                     cableNum = self._getCableNum(diagram, terminalId)
-                    terminalId2 = terminals[1].attrib['id']
-                    cableNum2 = self._getCableNum(diagram, terminalId2)
-                    if cableNum == '': cableNum = cableNum2
-                    
+                    try:
+                        terminalId2 = terminals[1].attrib['id']
+                        cableNum2 = self._getCableNum(diagram, terminalId2)
+                        if cableNum == '': cableNum = cableNum2
+                    except:
+                        pass
                     el['uuid'] = element.attrib['uuid']
                     el['block_name'] = terminalName.split(':')[0]
                     el['terminal_name'] = terminalName.split(':')[1]
